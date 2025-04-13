@@ -1,0 +1,33 @@
+name: Update BTC Weekly CSV
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'  # jeden Montag um 00:00 UTC
+  workflow_dispatch:     # erlaubt manuelles Starten über GitHub UI
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repo
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Install dependencies
+      run: pip install pandas requests
+
+    - name: Download and update CSV
+      run: python scripts/update_csv.py
+
+    - name: Commit and push if changed
+      run: |
+        git config user.name "GitHub Action"
+        git config user.email "actions@github.com"
+        git add BTC_PL_Weekly_Data.csv
+        git diff --quiet && git diff --staged --quiet || git commit -m "Update BTC data (auto)"
+        git push
