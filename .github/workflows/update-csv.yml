@@ -1,33 +1,41 @@
-name: Update BTC Weekly CSV
+name: Update PowerLaw Data
 
 on:
   schedule:
-    - cron: '0 0 * * 1'  # jeden Montag um 00:00 UTC
-  workflow_dispatch:     # erlaubt manuelles Starten über GitHub UI
+    - cron: "0 23 * * *"   # Jeden Tag um 00:10 UTC
+  workflow_dispatch:        # Manuell starten möglich
 
 jobs:
-  update:
+  update-data:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repo
-      uses: actions/checkout@v3
+      # --- Repo auschecken ---
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.x'
+      # --- Python einrichten ---
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
 
-    - name: Install dependencies
-      run: pip install pandas requests
+      # --- Abhängigkeiten installieren ---
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy requests statsmodels matplotlib
 
-    - name: Download and update CSV
-      run: python scripts/update_csv.py
+      # --- Skript ausführen ---
+      - name: Run PowerLaw script
+        run: |
+          python scripts/btc_pl_daily.py
 
-    - name: Commit and push if changed
-      run: |
-        git config user.name "GitHub Action"
-        git config user.email "actions@github.com"
-        git add BTC_PL_Weekly_Data.csv
-        git diff --quiet && git diff --staged --quiet || git commit -m "Update BTC data (auto)"
-        git push
+      # --- Änderungen committen ---
+      - name: Commit and push updated data
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add .
+          git commit -m "Auto-update PowerLaw data" || echo "No changes to commit"
+          git push
