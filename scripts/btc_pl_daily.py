@@ -54,6 +54,17 @@ def load_historic_csv():
 
     df["date"] = pd.to_datetime(df["date"], format="%Y-%m-%d")
 
+# Preiswerte sicher in float umwandeln
+    df["price"] = (
+        df["price"]
+        .astype(str)            # falls mixed types
+        .str.replace(",", ".", regex=False)  # deutsches Komma zu Punkt
+        .astype(float)
+    )
+
+    # daysGB sicher als int/float
+    df["daysGB"] = df["daysGB"].astype(int)
+
     return df
 
 
