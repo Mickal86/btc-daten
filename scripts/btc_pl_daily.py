@@ -44,9 +44,18 @@ def load_historic_csv():
     print("→ Lade historische CSV...")
 
     df = pd.read_csv("BTC_PL_Daily_Data.csv", sep=";")
+
+    # Spaltennamen anpassen (Groß/Kleinschreibung vereinheitlichen)
+    df = df.rename(columns={
+        "Date": "date",
+        "DaysGB": "daysGB",
+        "Price": "price"
+    })
+
     df["date"] = pd.to_datetime(df["date"], format="%Y-%m-%d")
 
     return df
+
 
 
 def append_latest_price(df, latest_date, latest_price):
