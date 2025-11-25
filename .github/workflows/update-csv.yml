@@ -26,16 +26,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas numpy requests statsmodels matplotlib
 
-      # --- Skript ausführen ---
-      - name: Run PowerLaw script
+      # --- Python-Skript ausführen ---
+      - name: Run BTC PowerLaw Script
+        env:
+          CMC_API_KEY: ${{ secrets.a1f3b2ef-b73a-4db6-867b-ef04e79cbbd1 }}
         run: |
-          python scripts/btc_pl_daily.py
+          python scripts/btc-pl-daily.py
 
       # --- Änderungen committen ---
       - name: Commit and push updated data
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "actions@github.com"
-          git add .
+          git add -A
           git commit -m "Auto-update PowerLaw data" || echo "No changes to commit"
           git push
