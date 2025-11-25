@@ -31,7 +31,7 @@ jobs:
         env:
           CMC_API_KEY: ${{ secrets.CMC_API_KEY }}
         run: |
-          python scripts/btc-pl-daily.py
+          python scripts/btc_pl_daily.py
 
       # --- Änderungen committen ---
       - name: Commit and push updated data
