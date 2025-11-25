@@ -127,6 +127,9 @@ def compute_powerlaw(df):
     df["dev_up_1"] = modelprice * 10 ** (1 * std)
     df["dev_up_2"] = modelprice * 10 ** (2 * std)
 
+    # Datum für JSON serialisierbar machen
+    df["date"] = df["date"].dt.strftime("%Y-%m-%d")
+
     result = {
         "slope": float(slope),
         "intercept": float(mean_intercept),
