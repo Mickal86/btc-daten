@@ -29,7 +29,7 @@ jobs:
       # --- Python-Skript ausführen ---
       - name: Run BTC PowerLaw Script
         env:
-          CMC_API_KEY: ${{ secrets.a1f3b2ef-b73a-4db6-867b-ef04e79cbbd1 }}
+          CMC_API_KEY: ${{ secrets.CMC_API_KEY }}
         run: |
           python scripts/btc-pl-daily.py
 
