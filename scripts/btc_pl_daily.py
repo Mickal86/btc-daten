@@ -2,69 +2,91 @@ import requests
 import pandas as pd
 import numpy as np
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
 
-# ============================
-# 1. BTC Preise von CoinGecko laden
-# ============================
+# ============================================
+# 0. Einlesen CMC API Key
+# ============================================
 
-def fetch_btc_history():
-    print("→ Lade Bitcoin-Preis-Daten von CoinGecko...")
+CMC_API_KEY = os.getenv("CMC_API_KEY")
+if CMC_API_KEY is None:
+    raise ValueError("!! Kein API Key gefunden. Bitte GitHub Secret 'CMC_API_KEY' setzen.")
 
-    url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
-    params = {
-        "vs_currency": "usd",
-        "days": "max",
-        "interval": "daily"
-    }
 
-    r = requests.get(url, params=params)
+# ============================================
+# 1. Preise von CoinMarketCap laden
+# ============================================
+
+def fetch_latest_btc_price():
+    print("→ Lade aktuellen BTC-Preis von CoinMarketCap...")
+
+    url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
+    params = {"symbol": "BTC", "convert": "USD"}
+    headers = {"X-CMC_PRO_API_KEY": CMC_API_KEY}
+
+    r = requests.get(url, params=params, headers=headers)
     data = r.json()
 
-    prices = data["prices"]  # [timestamp, price]
+    price = data["data"]["BTC"]["quote"]["USD"]["price"]
+    timestamp = data["data"]["BTC"]["quote"]["USD"]["last_updated"]
 
-    dates = []
-    daily_price = []
-    days_since_genesis = []
+    date = timestamp[:10]   # yyyy-mm-dd
 
-    genesis = datetime(2009, 1, 3)
+    return date, float(price)
 
-    for ts, price in prices:
-        dt = datetime.utcfromtimestamp(ts / 1000)
-        dates.append(dt.strftime("%Y-%m-%d"))
-        daily_price.append(price)
-        days_since_genesis.append((dt - genesis).days)
 
-    df = pd.DataFrame({
-        "date": dates,
-        "day": days_since_genesis,
-        "price": daily_price
-    })
+# ============================================
+# 2. Historische Preisdaten laden + erweitern
+# ============================================
+
+def load_historic_csv():
+    print("→ Lade historische CSV...")
+
+    df = pd.read_csv("BTC_PL_Daily_Data.csv", sep=";")
+    df["date"] = pd.to_datetime(df["date"], format="%Y-%m-%d")
 
     return df
 
 
-# ============================
-# 2. Power-Law berechnen
-# ============================
+def append_latest_price(df, latest_date, latest_price):
+    print("→ Ergänze CSV um heutigen Preis...")
+
+    # Prüfen ob Datum bereits existiert
+    if latest_date in df["date"].dt.strftime("%Y-%m-%d").values:
+        print("✓ Aktuelles Datum existiert schon – kein Update nötig.")
+        return df
+
+    genesis = datetime(2009, 1, 3)
+    days_gb = (datetime.fromisoformat(latest_date) - genesis).days
+
+    new_row = {
+        "date": latest_date,
+        "daysGB": days_gb,
+        "price": latest_price
+    }
+
+    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+    return df
+
+
+# ============================================
+# 3. Power-Law berechnen
+# ============================================
 
 def compute_powerlaw(df):
-    print("→ Berechne Power-Law-Regression...")
+    print("→ Berechne Power-Law...")
 
-    # Entferne Nullwerte
-    df = df[df["day"] > 0]
+    df = df[df["daysGB"] > 0]
     df = df[df["price"] > 0]
 
-    logday = np.log10(df["day"].values)
+    logday = np.log10(df["daysGB"].values)
     logprice = np.log10(df["price"].values)
 
-    # lineare Regression in log-log Raum
-    p = np.polyfit(logday, logprice, 1)
-    slope = p[0]
-    intercept = p[1]
+    # Regression
+    slope, intercept = np.polyfit(logday, logprice, 1)
 
-    # individual intercept wie in MATLAB
+    # Individueller intercept
     individual = logprice - slope * logday
     mean_intercept = np.mean(individual)
 
@@ -72,22 +94,18 @@ def compute_powerlaw(df):
     logPL = slope * logday + mean_intercept
     modelprice = 10 ** logPL
 
+    df["pl"] = modelprice
+
     # Standardabweichung
     diff = np.abs(logprice - logPL)
     mean_diff = np.mean(diff)
     squared = (diff - mean_diff) ** 2
     std = np.sqrt(np.sum(squared) / (len(squared) - 1))
 
-    # Modell-Levels
-    df["pl"] = modelprice
+    # Levels
     df["dev_down_1"] = modelprice * 10 ** (-1 * std)
-    df["dev_down_1_5"] = modelprice * 10 ** (-1.5 * std)
-    df["dev_down_2"] = modelprice * 10 ** (-2 * std)
     df["dev_up_1"] = modelprice * 10 ** (1 * std)
-    df["dev_up_1_5"] = modelprice * 10 ** (1.5 * std)
     df["dev_up_2"] = modelprice * 10 ** (2 * std)
-    df["dev_up_2_5"] = modelprice * 10 ** (2.5 * std)
-    df["dev_up_3"] = modelprice * 10 ** (3 * std)
 
     result = {
         "slope": float(slope),
@@ -100,30 +118,41 @@ def compute_powerlaw(df):
     return result
 
 
-# ============================
-# 3. JSON speichern
-# ============================
+# ============================================
+# 4. JSON speichern für Webflow
+# ============================================
 
 def save_json(result):
-    os.makedirs("generated", exist_ok=True)
+    os.makedirs("data", exist_ok=True)
 
-    filepath = "generated/powerlaw.json"
+    filepath = "data/powerlaw.json"
 
     with open(filepath, "w") as f:
         json.dump(result, f, indent=2)
 
-    print(f"✓ JSON gespeichert: {filepath}")
+    print(f"✓ exportiert nach {filepath}")
 
 
-# ============================
+# ============================================
 # MAIN
-# ============================
+# ============================================
 
 if __name__ == "__main__":
-    print("=== Power-Law Update gestartet ===")
+    print("=== BTC Power-Law Update gestartet ===")
 
-    df = fetch_btc_history()
+    # CSV laden
+    df = load_historic_csv()
+
+    # Aktuellen Preis abrufen
+    latest_date, latest_price = fetch_latest_btc_price()
+
+    # ergänzen
+    df = append_latest_price(df, latest_date, latest_price)
+
+    # Power-Law berechnen
     result = compute_powerlaw(df)
+
+    # JSON speichern
     save_json(result)
 
     print("=== Fertig ===")
