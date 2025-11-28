@@ -2,7 +2,7 @@ name: Update PowerLaw Data
 
 on:
   schedule:
-    - cron: "10 0 * * *"   # Jeden Tag um 00:10 UTC
+  #  - cron: "10 0 * * *"   # Jeden Tag um 00:10 UTC
   workflow_dispatch:        # Manuell starten möglich
 
 jobs:
